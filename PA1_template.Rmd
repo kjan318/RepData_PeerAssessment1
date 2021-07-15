@@ -1,6 +1,7 @@
 ---
 title: "Reproducible Research: Peer Assessment 1"
 Author: "Kieso Jan"
+Created date: 2021/07/14
 output: 
   html_document:
     keep_md: true
@@ -31,8 +32,6 @@ The dataset is stored in a comma-separated-value (CSV) file and there are a tota
 ```{r}
 library(dplyr)
 library(ggplot2)
-library(data.table)
-
 
 ```
 ## Reading csv Data into data.frame 
@@ -40,11 +39,6 @@ library(data.table)
 ```{r}
 
 activityDT <- read.csv("data/activity.csv")
-
-head(activityDT)
-
-str(activityDT)
-
 
 ```
 
@@ -55,10 +49,8 @@ str(activityDT)
 
 ```{r}
 Total_steps <- group_by(activityDT, date) %>%
-               summarize(steps=sum(steps, na.rm = TRUE)) %>%
+               summarize(steps=sum(steps, na.rm = FALSE)) %>%
                unique()
-
-head(Total_steps, 10)
 
 ```
 2. Histogram of the total number of steps taken each day
@@ -72,14 +64,14 @@ ggplot(Total_steps, aes(x = steps)) +
   theme_bw() + guides(fill=FALSE)
 
 ```
+
 3. Mean and median number of steps taken each day
 
 ```{r}
 
-Total_steps$Mean_Steps <- mean(Total_steps$steps, na.rm = TRUE)
-Total_steps$Median_Steps <- median(Total_steps$steps, na.rm = TRUE)
-                    
-head(Total_steps, 10)
+Total_steps %>%
+  summarise(Mean_Steps = mean(steps, na.rm = TRUE)
+            , Median_Steps = median(steps, na.rm = TRUE) )
 
 ```
 
@@ -89,8 +81,6 @@ head(Total_steps, 10)
 IntervalDT  <- group_by(activityDT, interval) %>%
                summarize(steps=mean(steps, na.rm = TRUE)) %>%
                unique()
-
-head(IntervalDT, 10)
 
 ```
 
@@ -105,28 +95,140 @@ ggplot(IntervalDT, aes(x = interval, y = steps)) +
   theme_bw() + guides(fill=FALSE)
 
 ```
+
 5. The 5-minute interval that, on average, contains the maximum number of steps
 
 ```{r}
 
 filter(IntervalDT, steps==max(steps)) %>%
        mutate(max_interval = interval) %>%
-       select(max_interval) %>%
-       print()
+       select(max_interval) 
 
 ```
 
 
 ## Imputing missing values
 
+1. Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with 𝙽𝙰s)
+
+```{r}
+sum(is.na(activityDT$steps)) 
+
+```
+2. Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.
+
+3.Create a new dataset that is equal to the original dataset but with the missing data filled in.
+
+```{r}
+# Filling in missing values with median of dataset. 
+
+# to get median value from column "steps" for value is not NA, then assign to a variable
+
+sort(activityDT$steps,decreasing = FALSE) %>%
+  median(activityDT$steps, na.rm = TRUE)
+
+int_MedianSteps <- filter(activityDT, (!is.na(steps & steps==median(steps)))) %>%
+                    head(n=1) %>%
+                    select(steps) %>%
+                    as.numeric()
+
+
+# replace NA value by median value and create a tidy dataset
+tidyDT <- mutate(activityDT, steps = tidyr::replace_na(steps, int_MedianSteps))
+
+```
+
+```{r}
+
+write.csv(tidyDT, "data/tidyData.csv")
+
+```
+
+4. Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+
+```{r}
+# total number of steps taken per day
+Total_steps_2 <- group_by(tidyDT, date) %>%
+                 summarize(steps=sum(steps, na.rm = TRUE)) %>%
+                 unique()
+
+# mean and median total number of steps taken per day
+Total_steps_2 %>%
+             summarise(Mean_Steps = mean(steps, na.rm = TRUE)
+            , Median_Steps = median(steps, na.rm = TRUE) )
+
+
+ggplot(Total_steps_2, aes(x = steps)) +
+  geom_histogram( fill = "orange", binwidth = 500) +
+  labs(title = "Daily Steps", x = "steps", y= "Frequency") + 
+  scale_fill_brewer(palette="BrBG") +
+  theme_bw() + guides(fill=FALSE)
+```
+
+
+|Type of Estimate | Mean_Steps | Median_Steps |
+|:-------: | :-------: | -------:|
+|First Part (with na) | 10,765 | 10,765|
+|Second Part (filled in na with median) | 9,354.23 | 10,395|
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
 
-
-
+1. Create a new factor variable in the dataset with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day.
 
 ```{r}
+
+# recreating activityDT from scratch then making the new factor variable to ensure data consistency 
+library(data.table)
+
+activityDT <- read.csv("data/activity.csv")
+
+# creating new column "Day_of_Week" (e.g. Monday, Tuesday ...)
+activityDT <- mutate(activityDT,Day_of_Week = weekdays(as.POSIXct(date, format = "%Y-%m-%d")))
+
+# creating new column "weekday_or_weekend" to define weekday & weekend group of each observation.
+activityDT <- activityDT %>%
+  mutate(weekday_or_weekend = 
+        ifelse(Day_of_Week %in% c("Monday","Tuesday","Wednesday","Thursday","Friday"), "weekday",
+        ifelse(Day_of_Week %in% c("Saturday","Sunday"), "weekend","NA")))
+
+activityDT$weekday_or_weekend <- as.factor(activityDT$weekday_or_weekend)
+
+head(activityDT, 5)
+
+```
+
+2. Make a panel plot containing a time series plot (i.e. 𝚝𝚢𝚙𝚎 = "𝚕") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis). See the README file in the GitHub repository to see an example of what this plot should look like using simulated data.
+
+```{r}
+
+# to get median value from column "steps" for value is not NA, then assign to a variable
+
+sort(activityDT$steps,decreasing = FALSE) %>%
+  median(activityDT$steps, na.rm = TRUE)
+
+int_MedianSteps <- filter(activityDT, (!is.na(steps & steps==median(steps)))) %>%
+                    head(n=1) %>%
+                    select(steps) %>%
+                    as.numeric()
+
+# replace NA value by median value and create a tidy dataset
+tidyDT <- mutate(activityDT, steps = tidyr::replace_na(steps, int_MedianSteps))
+
+intervalDT <- group_by(tidyDT, interval,weekday_or_weekend ) %>%
+  summarize(Meansteps = mean(steps))
+
+ggplot(intervalDT, aes(x = interval, y= Meansteps, color = weekday_or_weekend)) +
+  geom_line() +
+  labs(title = "Avg. Daily Steps by Weekday or Weekend", x = "Interval", y= "No. of Steps") +
+  facet_wrap(~weekday_or_weekend , ncol = 1, nrow=2) +
+  scale_fill_brewer(palette="BrBG") +
+  theme_bw() + guides(fill=FALSE)
+
+
+```
+
+```{r echo=FALSE, results='hide'}
 
 
 # CLEAN UP #################################################
